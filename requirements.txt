@@ -1,0 +1,29 @@
+# Orchestration & LLMs
+langchain>=1.0.0
+langchain_community
+langchain_experimental
+langgraph>=1.0.0
+langchain-ollama
+langchain_openai>=1.0.0
+langchain-google-genai
+openai
+
+# Data Science & Machine Learning
+pandas
+numpy
+sqlalchemy
+scikit-learn
+xgboost
+
+# Visualization
+matplotlib
+seaborn
+plotly
+openpyxl
+
+# UI & Utilities
+streamlit
+streamlit-flow-component
+python-dotenv
+psutil
+ipykernel
