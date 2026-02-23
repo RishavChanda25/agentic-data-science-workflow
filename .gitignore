@@ -1,1 +1,52 @@
+# --- Environment Variables ---
 .env
+
+# --- Data & Artifact Directories ---
+# Ignore everything inside these directories
+data/raw/*
+data/processed/*
+data/artifacts/*
+
+# BUT explicitly track the .gitkeep files to preserve the folders
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/artifacts/.gitkeep
+
+# --- Reports & Figures ---
+# Ignore generated reports and figures
+reports/figures/*
+reports/final_reports/*
+
+# Preserve the folder structure
+!reports/figures/.gitkeep
+!reports/final_reports/.gitkeep
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# --- Virtual Environments ---
+venv/
+.venv/
+env/
+.env_python/
+
+# --- Jupyter Notebooks ---
+.ipynb_checkpoints/
+
+# --- OS Generated Files ---
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# --- IDEs and Editors ---
+.vscode/
+.idea/
+*.swp
+*.swo
