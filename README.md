@@ -48,4 +48,6 @@ Create a .env file in the root directory and add your Gemini API key:
 Running the Application
 Launch the interactive Streamlit UI by running:
 
+streamlit run app.py
+
 Upload a dataset (e.g., the included Heart Disease dataset), specify your target variable, and click "Run Pipeline."
