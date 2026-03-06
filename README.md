@@ -1,9 +1,11 @@
 🤖 Agentic Data Science Workflow
+
 An autonomous, multi-agent AI pipeline built with LangGraph and the Gemini 2.5 Flash API to automate the end-to-end machine learning lifecycle.
 
 This project transitions raw datasets into trained predictive models and synthesizes the mathematical metrics into human-readable business reports, completely autonomously.
 
 ✨ Key Features
+
 End-to-End Automation: Seamlessly handles Data Cleaning, Exploratory Data Analysis (EDA), Feature Engineering, Model Training, and Reporting.
 
 Intra-Node Self-Correction: Agents execute dynamically generated Python code in a secure REPL environment, featuring a 3-attempt LLM self-correction loop to debug pandas and scikit-learn runtime errors (e.g., dimensionality mismatches during One-Hot Encoding).
@@ -13,6 +15,7 @@ Interactive Frontend: A clean, user-friendly Streamlit web interface allowing us
 Decoupled Architecture: Built using a state-driven LangGraph architecture, keeping worker agents isolated and modular.
 
 🏗️ System Architecture (Variant 1: Linear Pipeline)
+
 Currently, the system operates as a deterministic, sequential pipeline (baseline variant):
 
 Cleaning Agent: Imputes missing values, drops duplicates, and normalizes column names.
@@ -26,6 +29,7 @@ Modelling Agent: Performs train-test splits, trains baseline models (Logistic Re
 Reporting Agent: Bypasses the REPL to safely synthesize raw JSON artifacts into a comprehensive Markdown report.
 
 🚀 Getting Started
+
 Prerequisites
 Python 3.10+
 
@@ -64,6 +68,7 @@ streamlit run app.py
 Upload a dataset (e.g., the Heart Disease dataset), specify your target variable, and click "Run Pipeline."
 
 🔬 Future Research (MSc Dissertation Scope)
+
 This repository will serve as the foundation for an ablation study on LLM orchestration techniques:
 
 Variant 2 (Upcoming): Implementation of a central Supervisor Agent using strict, rule-based LangGraph Conditional Edges.
