@@ -96,7 +96,7 @@ CRITICAL RULES:
             "artifacts": artifacts,
             "messages": ["Reporting Agent successfully generated the final Markdown document."],
             "error_flag": False,
-            "current_step": "end"
+            "current_step": "reporting"
         }
         
     except Exception as e:

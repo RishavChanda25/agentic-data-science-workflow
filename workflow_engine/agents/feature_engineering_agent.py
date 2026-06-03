@@ -48,15 +48,17 @@ Perform the following operations:
 1. Load the dataset.
 2. Ensure the output directory exists: `os.makedirs(r'{output_dir}', exist_ok=True)`.
 3. Separate the target variable '{target_var}' from the features so it does not get scaled or encoded.
-4. Using the EDA Summary above, identify the categorical features. You MUST apply One-Hot Encoding using `pd.get_dummies(df, columns=categorical_features, drop_first=True)`. Explicitly using the `columns` argument is CRITICAL because some categorical features are integers and will be ignored by pandas otherwise.
-5. Using the EDA Summary above, identify the numerical features. Apply `StandardScaler` from `sklearn.preprocessing` to them.
-6. Recombine the transformed features and the target variable '{target_var}' into a single DataFrame. Ensure the target column is placed at the very end.
-7. Save the final engineered DataFrame EXACTLY to '{output_path}'.
+4. CRITICAL MEMORY CONSTRAINT: Using the EDA Summary above, identify the categorical features. Before encoding, you MUST drop any categorical features with high cardinality (e.g., > 100 unique values, such as customer IDs or names) from the features dataframe to prevent catastrophic Numpy memory allocation errors.
+5. Apply One-Hot Encoding to the REMAINING categorical features using `pd.get_dummies(df, columns=remaining_categorical_features, drop_first=True)`. Explicitly using the `columns` argument is CRITICAL because some categorical features are integers and will be ignored by pandas otherwise.
+6. Using the EDA Summary above, identify the numerical features. Apply `StandardScaler` from `sklearn.preprocessing` to them.
+7. Recombine the transformed features and the target variable '{target_var}' into a single DataFrame. Ensure the target column is placed at the very end.
+8. Save the final engineered DataFrame EXACTLY to '{output_path}'.
 
 CRITICAL RULES:
 - Output ONLY valid Python code. Do not wrap it in markdown blockquotes (no ```python).
 - Do not add explanations or text outside the code.
 - Ensure all variable names align correctly when recombining dataframes.
+- DANGEROUS ENVIRONMENT QUIRK: You MUST NOT use list comprehensions (e.g., [x for x in my_list]). You MUST use standard multi-line 'for' loops and '.append()' instead, otherwise the REPL will crash with a NameError.
 """
 
     messages = [
@@ -91,7 +93,7 @@ CRITICAL RULES:
                 "current_dataset_path": f"data/processed/engineered_data.csv",
                 "messages": [f"Feature Engineering Agent successfully transformed data after {attempts} attempt(s)."],
                 "error_flag": False,
-                "current_step": "Modelling_Agent" 
+                "current_step": "feature_engineering" 
             }
         else:
             error_msg = execution_result['output']

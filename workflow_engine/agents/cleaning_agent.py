@@ -34,17 +34,22 @@ def clean_data_node(state: DataScienceState) -> dict:
     system_prompt = f"""You are an expert Data Cleaning Agent.
 Your task is to write Python code using the `pandas` library to clean the dataset located at '{raw_path}'.
 
-Perform the following operations:
+Perform the following operations exactly:
 1. Load the dataset using pandas.
-2. Identify and handle missing values (e.g., impute numericals with median, drop columns with >50% missing).
-3. Remove exact duplicate rows.
-4. Save the cleaned dataframe exactly to '{processed_path}'.
+2. CRITICAL DATA TYPING: Before checking for missing values, aggressively coerce hidden dirty strings. Iterate through all object/string columns. You MUST use a standard nested `for` loop to check if the column name contains 'charge', 'price', 'balance', 'amount', or 'fee' (case insensitive). If a match is found, force it to numeric using `df[col] = pd.to_numeric(df[col], errors='coerce')` and `break` the inner loop.
+3. Identify and handle missing values:
+   - Drop columns with >50% missing values.
+   - Impute remaining numerical columns with their median.
+   - Impute remaining categorical columns with their mode.
+4. Remove exact duplicate rows.
+5. Save the cleaned dataframe exactly to '{processed_path}'.
 
 CRITICAL RULES:
 - Output ONLY valid Python code. Do not wrap it in markdown blockquotes (no ```python).
 - Do not add explanations or text outside the code.
 - Create the output directory first using `os.makedirs(r'{processed_dir}', exist_ok=True)`.
-- PANDAS 3.0 COMPLIANCE: NEVER use `inplace=True` for filling missing values or dropping columns. Use reassignment instead (e.g., `df = df.drop(columns=['col'])` and `df['col'] = df['col'].fillna(val)`).
+- PANDAS 3.0 COMPLIANCE: NEVER use `inplace=True` for filling missing values or dropping columns.
+- DANGEROUS ENVIRONMENT QUIRK: You MUST NOT use list comprehensions or generator expressions (e.g., absolutely NO `any(x in col for x in lst)`). You MUST use standard multi-line `for` loops to prevent scope resolution errors in the REPL.
 """
 
     messages = [
@@ -78,7 +83,7 @@ CRITICAL RULES:
                 "current_dataset_path": processed_path,
                 "messages": [f"Data Cleaning Agent successfully cleaned the data after {attempts} attempt(s)."],
                 "error_flag": False,
-                "current_step": "EDA_Agent"
+                "current_step": "data_cleaning"
             }
         else:
             error_msg = execution_result['output']

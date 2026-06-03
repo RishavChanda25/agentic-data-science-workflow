@@ -93,7 +93,7 @@ CRITICAL RULES:
                 "artifacts": artifacts,
                 "messages": [f"EDA Agent successfully generated plots and JSON summary after {attempts} attempt(s)."],
                 "error_flag": False,
-                "current_step": "Feature_Engineering_Agent" # Routing to your new agent
+                "current_step": "eda"
             }
         else:
             error_msg = execution_result['output']

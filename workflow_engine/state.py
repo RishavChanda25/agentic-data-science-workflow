@@ -25,5 +25,9 @@ class DataScienceState(TypedDict):
     error_flag: bool
     error_message: Optional[str]
     
-    # Optional: For the future Critic/Debate Agent
     revision_count: int
+
+    user_preferences: dict
+    total_sleep_time: float
+    
+    next_node: str

@@ -35,18 +35,20 @@ def modelling_agent_node(state: DataScienceState) -> dict:
 
     # 2. Define the Agent's Persona and Rules
     system_prompt = f"""You are an expert Machine Learning Modelling Agent.
-Your task is to write Python code using `pandas`, `scikit-learn`, `joblib`, and `matplotlib` to train and evaluate models on the dataset located at '{input_path}'.
+Your task is to write Python code using `pandas`, `scikit-learn`, `xgboost`, `joblib`, and `matplotlib` to train and evaluate models on the dataset located at '{input_path}'.
 
 Perform the following operations exactly:
-1. Load the dataset. Convert any boolean columns (True/False) to integers (1/0) using `df = df.astype(float)` to ensure complete compatibility.
-2. Separate the features (X) and the target variable '{target_var}' (y).
-3. Split the data into training and testing sets (80/20 split, random_state=42).
-4. Train two models: a `LogisticRegression` and a `RandomForestClassifier(random_state=42)`.
-5. Evaluate both models on the test set using `accuracy_score`.
-6. Determine which model has the higher accuracy.
-7. Save the BEST model to '{model_output_path}' using `joblib.dump()`.
-8. Save a JSON file containing the best model's name and its accuracy, precision, recall, and f1-score to '{metrics_output_path}'.
-9. Generate a Confusion Matrix plot for the BEST model using `ConfusionMatrixDisplay` or `seaborn.heatmap`. Save the plot to '{confusion_matrix_path}'.
+1. Load the dataset.
+2. Separate the features (X) and the target (y). The target variable column is EXACTLY named '{target_var}'. You MUST write `y = df['{target_var}']` and `X = df.drop(columns=['{target_var}'])`.
+3. CRITICAL ENCODING: Check if the target variable (y) is of object/string type (e.g., 'Yes'/'No'). If it is, you MUST use `LabelEncoder` from `sklearn.preprocessing` to convert it to numeric (1/0) BEFORE splitting the data.
+4. Convert any boolean columns in the features to floats using `X = X.astype(float)` to ensure complete compatibility with XGBoost.
+5. Split the data into training and testing sets (80/20 split, random_state=42).
+6. Train three models: a `LogisticRegression`, a `RandomForestClassifier(random_state=42)`, and an `XGBClassifier(random_state=42, eval_metric='logloss')`.
+7. Evaluate all three models on the test set by calculating Accuracy, Precision, Recall, and F1-Score.
+8. Determine the best model based strictly on the highest F1-Score to properly account for class imbalances.
+9. Save the best model to '{model_output_path}' using `joblib.dump()`.
+10. Save a JSON file containing the best model's name and its accuracy, precision, recall, and f1-score to '{metrics_output_path}'.
+11. Generate a Confusion Matrix plot for the BEST model using `ConfusionMatrixDisplay` or `seaborn.heatmap`. Save the plot to '{confusion_matrix_path}'.
 
 CRITICAL RULES:
 - Output ONLY valid Python code. Do not wrap it in markdown blockquotes (no ```python).
@@ -96,7 +98,7 @@ CRITICAL RULES:
                     "artifacts": artifacts,
                     "messages": [f"Modelling Agent successfully trained and saved models after {attempts} attempt(s)."],
                     "error_flag": False,
-                    "current_step": "end" # Workflow is complete!
+                    "current_step": "modelling"
                 }
             else:
                 error_msg = execution_result['output']
@@ -109,13 +111,16 @@ Please fix the code and provide the complete, corrected script. Ensure you impor
                 messages.append(HumanMessage(content=correction_prompt))
                 
         except Exception as e:
-            print(f"API Error encountered: {e}")
-            if "429" in str(e):
-                print("Rate limit hit! Forcing a longer cooldown...")
-                time.sleep(30)
-                continue
+            error_str = str(e)
+            if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
+                print(f"⚠️ API Rate Limit Hit! Forcing a 65-second deep cooldown...")
+                time.sleep(65.0)  # <-- INCREASE THIS TO 65
+                # Note: Because this is a failed run, you don't need to track this 
+                # sleep time for the final ablation study baseline. You only track 
+                # the time of a fully successful, uninterrupted run.
             else:
-                break
+                print(f"⚠️ API Error encountered: {error_str}")
+                time.sleep(5.0) # Standard small delay for non-quota errors
 
     print("\nStatus: Max retries reached. Node failed.")
     return {
