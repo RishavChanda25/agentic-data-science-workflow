@@ -1,4 +1,5 @@
 import os
+import time
 import json
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_openai import ChatOpenAI
@@ -7,7 +8,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from workflow_engine.state import DataScienceState
 
 # We can use a slightly more creative/higher temperature for reporting
-llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.3)
+llm = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite", temperature=0.4)
 
 def reporting_agent_node(state: DataScienceState) -> dict:
     """
@@ -77,11 +78,32 @@ CRITICAL RULES:
         SystemMessage(content=system_prompt),
         HumanMessage(content="Please write the final markdown report now.")
     ]
+
+    # --- OBSERVABILITY: Local Accumulators ---
+    node_input_tokens = 0
+    node_output_tokens = 0
+    node_timestamps = []
     
     # 4. Generate the Report
     try:
         response = llm.invoke(messages)
-        report_content = response.content.replace("```markdown", "").replace("```", "").strip()
+
+        # --- OBSERVABILITY: Intercept Usage Metadata ---
+        usage = response.usage_metadata or {}
+        node_input_tokens += usage.get("input_tokens", 0)
+        node_output_tokens += usage.get("output_tokens", 0)
+        node_timestamps.append(time.time())
+
+        # --- SAFELY EXTRACT CONTENT (Handles both Strings and Multimodal Lists) ---
+        raw_content = response.content
+        if isinstance(raw_content, list):
+            # Extract the text from the list of blocks
+            text_content = "".join(block.get("text", "") for block in raw_content if isinstance(block, dict))
+        else:
+            text_content = str(raw_content)
+            
+        # Sanitize the output: strip out markdown blocks
+        report_content = text_content.replace("```markdown", "").replace("```", "").strip()
         
         # Save the report to disk
         with open(report_output_path, "w", encoding="utf-8") as f:
@@ -96,12 +118,20 @@ CRITICAL RULES:
             "artifacts": artifacts,
             "messages": ["Reporting Agent successfully generated the final Markdown document."],
             "error_flag": False,
-            "current_step": "reporting"
+            "current_step": "reporting",
+            # Pass accumulated tokens and timestamps to the LangGraph state
+            "total_input_tokens": state.get("total_input_tokens", 0) + node_input_tokens,
+            "total_output_tokens": state.get("total_output_tokens", 0) + node_output_tokens,
+            "api_call_timestamps": node_timestamps
         }
         
     except Exception as e:
         print(f"Reporting Agent Failed: {e}")
         return {
             "error_flag": True,
-            "error_message": f"Failed to generate report: {e}"
+            "error_message": f"Failed to generate report: {e}",
+            # Pass accumulated tokens and timestamps to the LangGraph state
+            "total_input_tokens": state.get("total_input_tokens", 0) + node_input_tokens,
+            "total_output_tokens": state.get("total_output_tokens", 0) + node_output_tokens,
+            "api_call_timestamps": node_timestamps
         }

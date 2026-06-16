@@ -1,5 +1,6 @@
 import os
 import json
+import time
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -7,7 +8,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from workflow_engine.state import DataScienceState
 from workflow_engine.tools.python_repl import DataScienceREPL
 
-llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+llm = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite", temperature=0)
 
 def feature_engineering_agent_node(state: DataScienceState) -> dict:
     """
@@ -69,6 +70,11 @@ CRITICAL RULES:
     repl = DataScienceREPL()
     max_retries = 3
     attempts = 0
+
+    # --- OBSERVABILITY: Local Accumulators ---
+    node_input_tokens = 0
+    node_output_tokens = 0
+    node_timestamps = []
     
     # 4. Intra-Node Execution and Self-Correction Loop
     while attempts < max_retries:
@@ -77,8 +83,22 @@ CRITICAL RULES:
         
         response = llm.invoke(messages)
         
-        # Sanitize the output
-        generated_code = response.content.replace("```python", "").replace("```", "").strip()
+        # --- OBSERVABILITY: Intercept Usage Metadata ---
+        usage = response.usage_metadata or {}
+        node_input_tokens += usage.get("input_tokens", 0)
+        node_output_tokens += usage.get("output_tokens", 0)
+        node_timestamps.append(time.time())
+        
+        # --- SAFELY EXTRACT CONTENT (Handles both Strings and Multimodal Lists) ---
+        raw_content = response.content
+        if isinstance(raw_content, list):
+            # Extract the text from the list of blocks
+            text_content = "".join(block.get("text", "") for block in raw_content if isinstance(block, dict))
+        else:
+            text_content = str(raw_content)
+            
+        # Sanitize the output: strip out markdown blocks
+        generated_code = text_content.replace("```python", "").replace("```", "").strip()
         print("Generated Code:\n", generated_code)
         
         # Execute the code
@@ -93,7 +113,11 @@ CRITICAL RULES:
                 "current_dataset_path": f"data/processed/engineered_data.csv",
                 "messages": [f"Feature Engineering Agent successfully transformed data after {attempts} attempt(s)."],
                 "error_flag": False,
-                "current_step": "feature_engineering" 
+                "current_step": "feature_engineering",
+                # Pass accumulated tokens and timestamps to the LangGraph state
+                "total_input_tokens": state.get("total_input_tokens", 0) + node_input_tokens,
+                "total_output_tokens": state.get("total_output_tokens", 0) + node_output_tokens,
+                "api_call_timestamps": node_timestamps
             }
         else:
             error_msg = execution_result['output']
@@ -111,5 +135,9 @@ Please fix the code and provide the complete, corrected Python script. Pay close
     return {
         "error_flag": True,
         "error_message": f"Feature Engineering failed after {max_retries} attempts. Last error: {execution_result['output']}",
-        "messages": [f"Feature Engineering failed. Last error: {execution_result['output']}"]
+        "messages": [f"Feature Engineering failed. Last error: {execution_result['output']}"],
+        # Pass accumulated tokens and timestamps to the LangGraph state
+        "total_input_tokens": state.get("total_input_tokens", 0) + node_input_tokens,
+        "total_output_tokens": state.get("total_output_tokens", 0) + node_output_tokens,
+        "api_call_timestamps": node_timestamps
     }

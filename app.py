@@ -57,7 +57,11 @@ if run_button:
             "error_message": "",
             "revision_count": 0,
             "user_preferences": {},
-            "next_node": ""
+            "total_sleep_time": 0.0,
+            "next_node": "",
+            "total_input_tokens": 0,
+            "total_output_tokens": 0,
+            "api_call_timestamps": []
         }
 
         # 3. Build the Graph

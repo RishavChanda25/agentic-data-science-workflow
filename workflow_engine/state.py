@@ -29,5 +29,10 @@ class DataScienceState(TypedDict):
 
     user_preferences: dict
     total_sleep_time: float
+
+    # Observability Ledger
+    total_input_tokens: int
+    total_output_tokens: int
+    api_call_timestamps: Annotated[list, operator.add]
     
     next_node: str

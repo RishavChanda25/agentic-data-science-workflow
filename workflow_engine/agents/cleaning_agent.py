@@ -1,4 +1,5 @@
 import os
+import time
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -8,13 +9,13 @@ from workflow_engine.tools.python_repl import DataScienceREPL
 
 # Initialize your LLM (Choose the one you are actively using for this node)
 # llm = ChatOpenAI(model="gpt-4-turbo", temperature=0)
-llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+llm = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite", temperature=0)
 
 def clean_data_node(state: DataScienceState) -> dict:
     """
     LangGraph node responsible for cleaning the raw dataset.
     Generates code to handle missing values, duplicates, and types.
-    Features an internal 3-attempt self-correction loop.
+    Features an internal 3-attempt self-correction loop and API cost tracking.
     """
     print("--- AGENT: DATA CLEANING ---")
     
@@ -57,9 +58,15 @@ CRITICAL RULES:
         HumanMessage(content="Please write the Python code to execute this task now.")
     ]
     
-    repl = DataScienceREPL()
+    # Initialize REPL and Retry logic
+    repl = DataScienceREPL() # Ensure this is initialized/passed correctly in your actual scope
     max_retries = 3
     attempts = 0
+    
+    # --- OBSERVABILITY: Local Accumulators ---
+    node_input_tokens = 0
+    node_output_tokens = 0
+    node_timestamps = []
     
     # 4. Intra-Node Execution and Self-Correction Loop
     while attempts < max_retries:
@@ -69,8 +76,22 @@ CRITICAL RULES:
         # Get the code from the LLM
         response = llm.invoke(messages)
         
-        # Sanitize the output: strip out markdown blocks if the LLM ignores instructions
-        generated_code = response.content.replace("```python", "").replace("```", "").strip()
+        # --- OBSERVABILITY: Intercept Usage Metadata ---
+        usage = response.usage_metadata or {}
+        node_input_tokens += usage.get("input_tokens", 0)
+        node_output_tokens += usage.get("output_tokens", 0)
+        node_timestamps.append(time.time())
+        
+        # --- SAFELY EXTRACT CONTENT (Handles both Strings and Multimodal Lists) ---
+        raw_content = response.content
+        if isinstance(raw_content, list):
+            # Extract the text from the list of blocks
+            text_content = "".join(block.get("text", "") for block in raw_content if isinstance(block, dict))
+        else:
+            text_content = str(raw_content)
+            
+        # Sanitize the output: strip out markdown blocks
+        generated_code = text_content.replace("```python", "").replace("```", "").strip()
         print("Generated Code:\n", generated_code)
         
         # Execute the code locally via your REPL
@@ -83,7 +104,11 @@ CRITICAL RULES:
                 "current_dataset_path": processed_path,
                 "messages": [f"Data Cleaning Agent successfully cleaned the data after {attempts} attempt(s)."],
                 "error_flag": False,
-                "current_step": "data_cleaning"
+                "current_step": "data_cleaning",
+                # Pass accumulated tokens and timestamps to the LangGraph state
+                "total_input_tokens": state.get("total_input_tokens", 0) + node_input_tokens,
+                "total_output_tokens": state.get("total_output_tokens", 0) + node_output_tokens,
+                "api_call_timestamps": node_timestamps
             }
         else:
             error_msg = execution_result['output']
@@ -102,5 +127,9 @@ Please fix the code and provide the complete, corrected Python script. Remember 
     return {
         "error_flag": True,
         "error_message": f"Data Cleaning Agent failed after {max_retries} attempts. Last error: {execution_result['output']}",
-        "messages": [f"Data Cleaning failed. Last error: {execution_result['output']}"]
+        "messages": [f"Data Cleaning failed. Last error: {execution_result['output']}"],
+        # Even on failure, bill the state for the tokens consumed during the failed retries
+        "total_input_tokens": state.get("total_input_tokens", 0) + node_input_tokens,
+        "total_output_tokens": state.get("total_output_tokens", 0) + node_output_tokens,
+        "api_call_timestamps": node_timestamps
     }

@@ -1,4 +1,5 @@
 import os
+import time
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -7,7 +8,7 @@ from workflow_engine.state import DataScienceState
 from workflow_engine.tools.python_repl import DataScienceREPL
 
 # Sticking with flash for rapid prototyping
-llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+llm = ChatGoogleGenerativeAI(model="gemini-3.1-flash-lite", temperature=0)
 
 def eda_agent_node(state: DataScienceState) -> dict:
     """
@@ -30,27 +31,29 @@ def eda_agent_node(state: DataScienceState) -> dict:
     artifacts_dir = os.path.join(project_root, "data", "artifacts").replace('\\', '/')
     
     # Extract target variable if provided in state
-    target_var = state.get("target_variable", "target") # Defaulted to 'target' for the heart disease dataset
+    target_var = state.get("target_variable")
 
     # 3. Define the Agent's Persona and Rules (UPDATED FOR JSON SERIALIZATION)
     system_prompt = f"""You are an expert Exploratory Data Analysis (EDA) Agent.
 Your task is to write Python code using `pandas`, `matplotlib`, `seaborn`, and `json` to analyze the cleaned dataset located at '{input_path}'.
 
-Perform the following operations:
+Perform the following operations exactly:
 1. Load the dataset.
-2. Create output directories using `os.makedirs(r'{reports_dir}', exist_ok=True)` and `os.makedirs(r'{artifacts_dir}', exist_ok=True)`.
-3. Generate a comprehensive JSON summary of the dataset's features to guide downstream Feature Engineering:
+2. The target variable is strictly '{target_var}'.
+3. Create output directories using `os.makedirs(r'{reports_dir}', exist_ok=True)` and `os.makedirs(r'{artifacts_dir}', exist_ok=True)`.
+4. Generate a comprehensive JSON summary of the dataset's features to guide downstream Feature Engineering:
    - For every column (excluding '{target_var}'), determine if it is numerical or categorical.
    - HEURISTIC RULE: If a column has `dtype` 'object', 'category', 'bool', OR has <= 10 unique values, treat it as a 'categorical_feature' and record its cardinality.
    - Otherwise, treat it as a 'numerical_feature' and record its min, max, mean, and skewness.
-   - CRITICAL: You MUST cast all Pandas/Numpy numeric types to standard Python types (e.g., use `int(val)` or `float(val)`) before saving to JSON, or it will crash with a TypeError.
+   - CRITICAL JSON RULE: You MUST cast all Pandas/Numpy numeric types to standard Python types (e.g., use `int(val)` or `float(val)`) before saving to JSON, or it will crash with a TypeError.
    - Save this dictionary as a JSON file exactly to '{artifacts_dir}/eda_summary.json'.
-4. Generate a correlation heatmap for numerical features ONLY. Save it exactly to '{reports_dir}/correlation_heatmap.png'.
-5. Generate a distribution plot for the target variable '{target_var}' if it exists. Save it exactly to '{reports_dir}/target_distribution.png'.
+5. Generate a correlation heatmap for numerical features ONLY. Save it exactly to '{reports_dir}/correlation_heatmap.png'.
+6. Generate a distribution plot for the target variable '{target_var}' if it exists. Save it exactly to '{reports_dir}/target_distribution.png'.
 
 CRITICAL RULES:
 - Output ONLY valid Python code. Do not wrap it in markdown blockquotes (no ```python).
 - Do not add explanations or text outside the code.
+- DANGEROUS ENVIRONMENT QUIRK: You MUST NOT use list comprehensions or generator expressions (e.g., absolutely NO `[col for col in df.columns]`). You MUST use standard multi-line `for` loops and `.append()` methods to build lists. The Python REPL will crash if you use list comprehensions.
 - ALWAYS use `plt.savefig(filepath, bbox_inches='tight')` to save your plots.
 - ALWAYS call `plt.close()` or `plt.clf()` immediately after saving each plot to prevent overlapping axes and memory leaks.
 - NEVER use `plt.show()`.
@@ -65,6 +68,11 @@ CRITICAL RULES:
     max_retries = 3
     attempts = 0
     
+    # --- OBSERVABILITY: Local Accumulators ---
+    node_input_tokens = 0
+    node_output_tokens = 0
+    node_timestamps = []
+
     # 4. Intra-Node Execution and Self-Correction Loop
     while attempts < max_retries:
         attempts += 1
@@ -72,8 +80,22 @@ CRITICAL RULES:
         
         response = llm.invoke(messages)
         
-        # Sanitize the output
-        generated_code = response.content.replace("```python", "").replace("```", "").strip()
+        # --- OBSERVABILITY: Intercept Usage Metadata ---
+        usage = response.usage_metadata or {}
+        node_input_tokens += usage.get("input_tokens", 0)
+        node_output_tokens += usage.get("output_tokens", 0)
+        node_timestamps.append(time.time())
+        
+        # --- SAFELY EXTRACT CONTENT (Handles both Strings and Multimodal Lists) ---
+        raw_content = response.content
+        if isinstance(raw_content, list):
+            # Extract the text from the list of blocks
+            text_content = "".join(block.get("text", "") for block in raw_content if isinstance(block, dict))
+        else:
+            text_content = str(raw_content)
+            
+        # Sanitize the output: strip out markdown blocks
+        generated_code = text_content.replace("```python", "").replace("```", "").strip()
         print("Generated Code:\n", generated_code)
         
         # Execute the code locally via your upgraded REPL
@@ -93,7 +115,11 @@ CRITICAL RULES:
                 "artifacts": artifacts,
                 "messages": [f"EDA Agent successfully generated plots and JSON summary after {attempts} attempt(s)."],
                 "error_flag": False,
-                "current_step": "eda"
+                "current_step": "eda",
+                # Pass accumulated tokens and timestamps to the LangGraph state
+                "total_input_tokens": state.get("total_input_tokens", 0) + node_input_tokens,
+                "total_output_tokens": state.get("total_output_tokens", 0) + node_output_tokens,
+                "api_call_timestamps": node_timestamps
             }
         else:
             error_msg = execution_result['output']
@@ -111,5 +137,9 @@ Please fix the code and provide the complete, corrected Python script. Remember 
     return {
         "error_flag": True,
         "error_message": f"EDA Agent failed after {max_retries} attempts. Last error: {execution_result['output']}",
-        "messages": [f"EDA failed. Last error: {execution_result['output']}"]
+        "messages": [f"EDA failed. Last error: {execution_result['output']}"],
+        # Pass accumulated tokens and timestamps to the LangGraph state
+        "total_input_tokens": state.get("total_input_tokens", 0) + node_input_tokens,
+        "total_output_tokens": state.get("total_output_tokens", 0) + node_output_tokens,
+        "api_call_timestamps": node_timestamps
     }
