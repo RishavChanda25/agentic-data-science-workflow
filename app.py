@@ -61,7 +61,10 @@ if run_button:
             "next_node": "",
             "total_input_tokens": 0,
             "total_output_tokens": 0,
-            "api_call_timestamps": []
+            "api_call_timestamps": [],
+            "supervisor_latency": 0.0,
+            "supervisor_tokens": 0,
+            "supervisor_calls": 0 
         }
 
         # 3. Build the Graph

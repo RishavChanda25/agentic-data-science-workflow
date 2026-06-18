@@ -34,5 +34,10 @@ class DataScienceState(TypedDict):
     total_input_tokens: int
     total_output_tokens: int
     api_call_timestamps: Annotated[list, operator.add]
+
+    # Orchestration Tax trackers
+    supervisor_latency: Annotated[float, operator.add]
+    supervisor_tokens: Annotated[int, operator.add]
+    supervisor_calls: Annotated[int, operator.add]
     
     next_node: str

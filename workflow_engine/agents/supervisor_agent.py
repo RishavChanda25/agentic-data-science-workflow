@@ -25,6 +25,14 @@ def supervisor_node(state: DataScienceState):
             "api_call_timestamps": [time.time()] # Log the final action time
         }
     
+    # Rate Limit Protocol & Latency Tracking
+    sleep_duration = 5.0
+    print(f"⏳ [Rate Limit Protocol] Pausing for {sleep_duration}s to protect quota...")
+    time.sleep(sleep_duration)
+
+    # 1. Start the high-precision timer
+    start_time = time.perf_counter()
+    
     # CRITICAL FIX: include_raw=True ensures we don't lose the token metadata
     structured_llm = llm.with_structured_output(Route, include_raw=True)
     
@@ -52,11 +60,6 @@ def supervisor_node(state: DataScienceState):
         HumanMessage(content=f"The last completed step was: {current_step}. What is the next node?")
     ]
     
-    # Rate Limit Protocol & Latency Tracking
-    sleep_duration = 10.0
-    print(f"⏳ [Rate Limit Protocol] Pausing for {sleep_duration}s to protect quota...")
-    time.sleep(sleep_duration)
-    
     try:
         result = structured_llm.invoke(messages)
         
@@ -72,19 +75,40 @@ def supervisor_node(state: DataScienceState):
         node_input_tokens = usage.get("input_tokens", 0)
         node_output_tokens = usage.get("output_tokens", 0)
         
+        # Calculate supervisor specific tokens
+        supervisor_tax_tokens = node_input_tokens + node_output_tokens
+        
+        # 2. Stop the timer for SUCCESSFUL execution
+        end_time = time.perf_counter()
+        supervisor_latency = end_time - start_time
+        
         return {
             "next_node": next_route,
             "total_sleep_time": current_sleep + sleep_duration,
+            # Maintain your existing global token tracking
             "total_input_tokens": state.get("total_input_tokens", 0) + node_input_tokens,
             "total_output_tokens": state.get("total_output_tokens", 0) + node_output_tokens,
-            "api_call_timestamps": [time.time()] 
+            "api_call_timestamps": [time.time()],
+            # --- NEW ORCHESTRATION TAX METRICS ---
+            "supervisor_latency": supervisor_latency,
+            "supervisor_tokens": supervisor_tax_tokens,
+            "supervisor_calls": 1
         }
     except Exception as e:
         print(f"❌ [Supervisor] Routing failed: {e}")
+        
+        # 2. Stop the timer for FAILED execution
+        end_time = time.perf_counter()
+        supervisor_latency = end_time - start_time
+        
         return {
             "error_flag": True, 
             "error_message": f"Supervisor failed to route: {str(e)}",
             "next_node": "FINISH",
             "total_sleep_time": current_sleep + sleep_duration,
-            "api_call_timestamps": [time.time()] # Log the time even on a failed API call
+            "api_call_timestamps": [time.time()],
+            # --- NEW ORCHESTRATION TAX METRICS ---
+            "supervisor_latency": supervisor_latency,
+            "supervisor_tokens": 0, # Assuming no tokens returned on exception
+            "supervisor_calls": 1
         }
