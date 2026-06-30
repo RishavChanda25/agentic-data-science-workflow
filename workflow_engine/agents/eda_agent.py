@@ -33,22 +33,44 @@ def eda_agent_node(state: DataScienceState) -> dict:
     # Extract target variable if provided in state
     target_var = state.get("target_variable")
 
-    # 3. Define the Agent's Persona and Rules (UPDATED FOR JSON SERIALIZATION)
+    preset = state.get("active_preset", "ENTERPRISE_STANDARD")
+    target_var = state.get("target_variable")
+
     system_prompt = f"""You are an expert Exploratory Data Analysis (EDA) Agent.
 Your task is to write Python code using `pandas`, `matplotlib`, `seaborn`, and `json` to analyze the cleaned dataset located at '{input_path}'.
 
 Perform the following operations exactly:
-1. Load the dataset.
-2. The target variable is strictly '{target_var}'.
-3. Create output directories using `os.makedirs(r'{reports_dir}', exist_ok=True)` and `os.makedirs(r'{artifacts_dir}', exist_ok=True)`.
-4. Generate a comprehensive JSON summary of the dataset's features to guide downstream Feature Engineering:
-   - For every column (excluding '{target_var}'), determine if it is numerical or categorical.
-   - HEURISTIC RULE: If a column has `dtype` 'object', 'category', 'bool', OR has <= 10 unique values, treat it as a 'categorical_feature' and record its cardinality.
-   - Otherwise, treat it as a 'numerical_feature' and record its min, max, mean, and skewness.
-   - CRITICAL JSON RULE: You MUST cast all Pandas/Numpy numeric types to standard Python types (e.g., use `int(val)` or `float(val)`) before saving to JSON, or it will crash with a TypeError.
-   - Save this dictionary as a JSON file exactly to '{artifacts_dir}/eda_summary.json'.
-5. Generate a correlation heatmap for numerical features ONLY. Save it exactly to '{reports_dir}/correlation_heatmap.png'.
-6. Generate a distribution plot for the target variable '{target_var}' if it exists. Save it exactly to '{reports_dir}/target_distribution.png'.
+1. Load the dataset. The target variable is strictly '{target_var}'.
+2. Create output directories using `os.makedirs(r'{reports_dir}', exist_ok=True)` for visualizations and `os.makedirs(r'{artifacts_dir}', exist_ok=True)` for the JSON summary.
+3. Generate a comprehensive JSON summary of the dataset and save it exactly to
+'{artifacts_dir}/eda_summary.json'.
+
+The JSON MUST contain ALL of the following top-level fields:
+- dataset_summary
+- numerical_features
+- categorical_features
+- generated_figures
+
+The 'generated_figures' field must be a list.
+
+Every time you generate a figure, append an object containing:
+- filename
+- title
+- description
+
+Example:
+
+{{
+  "filename":"{reports_dir}/correlation_heatmap.png",
+  "title":"Correlation Heatmap",
+  "description":"Shows pairwise correlations between numerical features."
+}}
+
+The JSON serves as the primary communication artifact for BOTH the downstream Feature Engineering Agent and the Reporting Agent.
+All Pandas/Numpy numeric values MUST be converted to standard Python types before serialization.
+
+4. Generate visualisations according to the active execution environment and save them inside {reports_dir}.
+Every visualisation that is successfully saved MUST also be recorded in generated_figures inside eda_summary.json.
 
 CRITICAL RULES:
 - Output ONLY valid Python code. Do not wrap it in markdown blockquotes (no ```python).
@@ -57,7 +79,81 @@ CRITICAL RULES:
 - ALWAYS use `plt.savefig(filepath, bbox_inches='tight')` to save your plots.
 - ALWAYS call `plt.close()` or `plt.clf()` immediately after saving each plot to prevent overlapping axes and memory leaks.
 - NEVER use `plt.show()`.
+
+--- DYNAMIC PERSONA INJECTION: {preset} ---
 """
+    
+    if preset == "RAPID_BASELINE":
+        system_prompt += f"""
+    MISSION: Produce only the minimum exploratory analysis required for downstream modelling.
+
+    PERSONA RULES:
+    - Generate ONLY a correlation heatmap for numerical features.
+    - Save it as 'correlation_heatmap.png'.
+    - Do not generate target distributions, pair plots or additional exploratory visualisations.
+    - Prioritise execution speed over exploratory insight.
+    """
+
+    elif preset == "QUICK_EXPLAINABLE":
+        system_prompt += f"""
+    MISSION: Produce a concise exploratory analysis that is easy to communicate.
+
+    PERSONA RULES:
+    - Generate a correlation heatmap ('correlation_heatmap.png').
+    - Generate a target distribution plot for '{target_var}' ('target_distribution.png').
+    - Do not generate computationally expensive exploratory plots.
+    - Focus on visualisations that are immediately understandable to non-technical audiences.
+    """
+
+    elif preset == "KAGGLE_COMPETITOR":
+        system_prompt += f"""
+    MISSION: Maximise statistical understanding of the dataset before modelling.
+
+    PERSONA RULES:
+    - Generate a correlation heatmap ('correlation_heatmap.png').
+    - Generate a target distribution plot for '{target_var}' ('target_distribution.png').
+    - Generate a missing value heatmap if missing values exist.
+    - Generate pair plots for numerical features. If the dataset is large, randomly sample the data first to maintain reasonable execution time.
+    - Generate feature distribution plots for important numerical variables.
+    - Produce the richest exploratory analysis regardless of computational cost.
+    """
+
+    elif preset == "ENTERPRISE_STANDARD":
+        system_prompt += f"""
+    MISSION: Produce a robust exploratory analysis suitable for production data science workflows.
+
+    PERSONA RULES:
+    - Generate a correlation heatmap ('correlation_heatmap.png').
+    - Generate a target distribution plot for '{target_var}' ('target_distribution.png').
+    - Generate boxplots for numerical variables.
+    - Generate class balance plots for classification problems.
+    - Focus on understanding data quality, feature relationships and distributions using standard industry practices.
+    """
+
+    elif preset == "REGULATORY_COMPLIANCE":
+        system_prompt += f"""
+    MISSION: Document the original characteristics of the dataset for audit purposes.
+
+    PERSONA RULES:
+    - Generate a correlation heatmap ('correlation_heatmap.png').
+    - Generate a target distribution plot for '{target_var}' ('target_distribution.png').
+    - Generate a missing value heatmap if applicable.
+    - Generate class balance plots for classification problems.
+    - Produce visualisations that serve as evidence of the dataset's original state rather than exploratory storytelling.
+    """
+
+    elif preset == "C_SUITE_PITCH":
+        system_prompt += f"""
+    MISSION: Produce executive-friendly visualisations that communicate business insights.
+
+    PERSONA RULES:
+    - Generate a target distribution plot for '{target_var}' ('target_distribution.png').
+    - Generate clear bar charts for important categorical variables.
+    - Generate histograms for key numerical variables.
+    - Generate pie charts where appropriate.
+    - Generate a correlation heatmap only if it supports the business narrative.
+    - Prioritise clarity, presentation quality and executive storytelling over technical depth.
+    """
 
     messages = [
         SystemMessage(content=system_prompt),
@@ -107,8 +203,6 @@ CRITICAL RULES:
             
             # Update artifacts dictionary with the new JSON summary
             artifacts = state.get("artifacts", {})
-            artifacts["correlation_heatmap"] = f"{reports_dir}/correlation_heatmap.png"
-            artifacts["target_distribution"] = f"{reports_dir}/target_distribution.png"
             artifacts["eda_summary"] = f"{artifacts_dir}/eda_summary.json"
             
             return {

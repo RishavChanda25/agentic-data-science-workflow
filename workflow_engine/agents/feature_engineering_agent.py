@@ -32,36 +32,137 @@ def feature_engineering_agent_node(state: DataScienceState) -> dict:
     
     # 2. Ingest the EDA Summary JSON
     eda_summary_path = state.get("artifacts", {}).get("eda_summary")
-    eda_summary_text = "No EDA summary provided."
+    eda_summary_text = "EDA was skipped. Infer feature types directly from the dataframe."
     
     if eda_summary_path and os.path.exists(eda_summary_path):
         with open(eda_summary_path, 'r') as f:
             eda_summary_text = f.read()
 
-    # 3. Define the Agent's Persona and Rules
-    system_prompt = f"""You are an expert Machine Learning Feature Engineering Agent.
-Your task is to write Python code using `pandas` and `scikit-learn` to transform the dataset located at '{input_path}'.
+    preset = state.get("active_preset", "ENTERPRISE_STANDARD")
 
-Here is the EDA Summary detailing the dataset's columns:
+    system_prompt = f"""You are an expert Machine Learning Feature Engineering Agent.
+Your task is to write Python code using `pandas` and `scikit-learn` to transform the dataset located at '{input_path}' into a model-ready feature matrix.
+
+EDA Summary:
 {eda_summary_text}
 
-Perform the following operations:
-1. Load the dataset.
-2. Ensure the output directory exists: `os.makedirs(r'{output_dir}', exist_ok=True)`.
-3. Separate the target variable '{target_var}' from the features so it does not get scaled or encoded.
-4. CRITICAL MEMORY CONSTRAINT: Using the EDA Summary above, identify the categorical features. Before encoding, you MUST drop any categorical features with high cardinality (e.g., > 100 unique values, such as customer IDs or names) from the features dataframe to prevent catastrophic Numpy memory allocation errors.
-5. Apply One-Hot Encoding to the REMAINING categorical features using `pd.get_dummies(df, columns=remaining_categorical_features, drop_first=True)`. Explicitly using the `columns` argument is CRITICAL because some categorical features are integers and will be ignored by pandas otherwise.
-6. Using the EDA Summary above, identify the numerical features. Apply `StandardScaler` from `sklearn.preprocessing` to them.
-7. Recombine the transformed features and the target variable '{target_var}' into a single DataFrame. Ensure the target column is placed at the very end.
-8. Save the final engineered DataFrame EXACTLY to '{output_path}'.
+IMPORTANT (if EDA Summary is present):
+- The JSON contains feature metadata, dataset statistics and generated visualisations.
+- Use ONLY the feature metadata to guide your engineering decisions.
+- Ignore the generated_figures section completely.
+
+Perform the following operations exactly:
+1. Load the dataset and create the output directory using:
+   `os.makedirs(r'{output_dir}', exist_ok=True)`.
+2. Separate the target variable '{target_var}' from the predictor variables.
+3. CRITICAL MEMORY CONSTRAINT:
+   If any predictor categorical feature contains more than 100 unique values,
+   drop that feature.
+   NEVER drop the target variable even if it exceeds this threshold.
+4. Transform the predictor variables according to your Persona Rules.
+5. Recombine the transformed predictors with the untouched target variable.
+   The target variable MUST appear as the final column.
+6. Save the engineered dataset EXACTLY to:
+   '{output_path}'.
 
 CRITICAL RULES:
 - Output ONLY valid Python code. Do not wrap it in markdown blockquotes (no ```python).
 - Do not add explanations or text outside the code.
 - Ensure all variable names align correctly when recombining dataframes.
+- NEVER transform the target variable.
+- ALL feature engineering operations MUST be applied only to predictor variables.
 - DANGEROUS ENVIRONMENT QUIRK: You MUST NOT use list comprehensions (e.g., [x for x in my_list]). You MUST use standard multi-line 'for' loops and '.append()' instead, otherwise the REPL will crash with a NameError.
-"""
 
+--- DYNAMIC PERSONA INJECTION: {preset} ---
+"""
+    
+    if preset == "RAPID_BASELINE":
+        system_prompt += """
+    MISSION:
+    Produce a model-ready dataset with the absolute minimum computational overhead.
+
+    PERSONA RULES:
+    - One-hot encode categorical predictors.
+    - Convert boolean predictors to numeric.
+    - Leave numerical predictors unchanged.
+    - No scaling.
+    - No feature selection.
+    - No PCA.
+    - No polynomial or interaction features.
+    - Avoid any transformation that is not strictly necessary for successful model training.
+    """
+
+    elif preset == "QUICK_EXPLAINABLE":
+        system_prompt += """
+    MISSION:
+    Produce features that remain immediately understandable to non-technical stakeholders.
+
+    PERSONA RULES:
+    - One-hot encode categorical predictors.
+    - StandardScale numerical predictors.
+    - Do not create synthetic features.
+    - No PCA.
+    - No feature selection.
+    - Prefer transparent transformations that can be easily explained.
+    """
+
+    elif preset == "KAGGLE_COMPETITOR":
+        system_prompt += """
+    MISSION:
+    Maximise predictive performance regardless of execution time.
+
+    PERSONA RULES:
+    - One-hot encode categorical predictors.
+    - StandardScale numerical predictors.
+    - If the EDA Summary or dataset indicates severe class imbalance, apply SMOTE before model training preparation.
+    - Generate second-degree PolynomialFeatures for numerical variables.
+    - If the transformed feature space exceeds approximately 50 features, apply PCA retaining approximately 95% explained variance.
+    - Optimise purely for predictive performance.
+    """
+
+    elif preset == "ENTERPRISE_STANDARD":
+        system_prompt += """
+    MISSION:
+    Produce robust, production-quality engineered features following standard machine learning practice.
+
+    PERSONA RULES:
+    - One-hot encode categorical predictors.
+    - StandardScale numerical predictors.
+    - Preserve feature interpretability.
+    - Do not create polynomial features.
+    - Do not create interaction features.
+    - Apply PCA ONLY if the post-encoding dimensionality exceeds approximately 100 features.
+    - Prefer maintainability and robustness over aggressive optimisation.
+    """
+
+    elif preset == "REGULATORY_COMPLIANCE":
+        system_prompt += """
+    MISSION:
+    Produce a fully transparent and auditable feature space.
+
+    PERSONA RULES:
+    - One-hot encode categorical predictors.
+    - MinMaxScaler to numerical features.
+    - Preserve a one-to-one mapping between engineered and original variables whenever possible.
+    - Do not apply PCA.
+    - Do not generate polynomial features.
+    - Do not generate interaction features.
+    - Every transformation must remain mathematically traceable.
+    """
+
+    elif preset == "C_SUITE_PITCH":
+        system_prompt += """
+    MISSION:
+    Perform only the minimum preprocessing required for downstream compatibility.
+
+    PERSONA RULES:
+    - Leave the feature space largely unchanged.
+    - One-hot encode categorical predictors only where they would otherwise prevent downstream processing.
+    - Do not perform scaling.
+    - Do not generate engineered features.
+    - Do not apply PCA.
+    - Do not perform feature selection beyond the mandatory high-cardinality rule.
+    """
     messages = [
         SystemMessage(content=system_prompt),
         HumanMessage(content="Please write the Python code to engineer the features now.")
@@ -109,8 +210,8 @@ CRITICAL RULES:
             print("Status: Success")
             
             return {
-                # We update the current_dataset_path so the Modeling agent uses the engineered data!
-                "current_dataset_path": f"data/processed/engineered_data.csv",
+                # We update the current_dataset_path so the Modelling agent uses the engineered data!
+                "current_dataset_path": output_path, # made absolute path earlier, but we want relative path in state
                 "messages": [f"Feature Engineering Agent successfully transformed data after {attempts} attempt(s)."],
                 "error_flag": False,
                 "current_step": "feature_engineering",

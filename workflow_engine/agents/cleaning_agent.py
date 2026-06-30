@@ -27,10 +27,14 @@ def clean_data_node(state: DataScienceState) -> dict:
         project_root = current_dir
 
     # 2. Define absolute paths (normalized with forward slashes for Windows safety)
-    raw_path = os.path.abspath(os.path.join(project_root, state["raw_dataset_path"])).replace('\\', '/')
+    raw_path = os.path.abspath(os.path.join(project_root, state["current_dataset_path"])).replace('\\', '/')
     processed_dir = os.path.join(project_root, "data", "processed").replace('\\', '/')
     processed_path = os.path.join(processed_dir, "cleaned_data.csv").replace('\\', '/')
     
+    target_var = state.get("target_variable")
+    
+    preset = state.get("active_preset", "ENTERPRISE_STANDARD")
+
     # 3. Define the Agent's Persona and Rules
     system_prompt = f"""You are an expert Data Cleaning Agent.
 Your task is to write Python code using the `pandas` library to clean the dataset located at '{raw_path}'.
@@ -38,21 +42,94 @@ Your task is to write Python code using the `pandas` library to clean the datase
 Perform the following operations exactly:
 1. Load the dataset using pandas.
 2. CRITICAL DATA TYPING: Before checking for missing values, aggressively coerce hidden dirty strings. Iterate through all object/string columns. You MUST use a standard nested `for` loop to check if the column name contains 'charge', 'price', 'balance', 'amount', or 'fee' (case insensitive). If a match is found, force it to numeric using `df[col] = pd.to_numeric(df[col], errors='coerce')` and `break` the inner loop.
-3. Identify and handle missing values:
-   - Drop columns with >50% missing values.
-   - Impute remaining numerical columns with their median.
-   - Impute remaining categorical columns with their mode.
-4. Remove exact duplicate rows.
-5. Save the cleaned dataframe exactly to '{processed_path}'.
+3. CRITICAL: Drop all columns flagged as unstructured free-text to preserve dimensionality limits.
+4. Handle missing values based on your Persona Rule.
+5. Remove exact duplicate rows.
+6. Drop any rows where the target variable '{target_var}' is missing.
+7. Save the cleaned dataframe exactly to '{processed_path}'.
 
 CRITICAL RULES:
 - Output ONLY valid Python code. Do not wrap it in markdown blockquotes (no ```python).
-- Do not add explanations or text outside the code.
 - Create the output directory first using `os.makedirs(r'{processed_dir}', exist_ok=True)`.
-- PANDAS 3.0 COMPLIANCE: NEVER use `inplace=True` for filling missing values or dropping columns.
-- DANGEROUS ENVIRONMENT QUIRK: You MUST NOT use list comprehensions or generator expressions (e.g., absolutely NO `any(x in col for x in lst)`). You MUST use standard multi-line `for` loops to prevent scope resolution errors in the REPL.
-"""
+- PANDAS 3.0 COMPLIANCE: NEVER use `inplace=True`.
+- DANGEROUS ENVIRONMENT QUIRK: You MUST NOT use list comprehensions or generator expressions. Use standard multi-line `for` loops.
 
+--- DYNAMIC PERSONA INJECTION: {preset} ---
+"""
+    
+    if preset == "RAPID_BASELINE":
+        system_prompt += """
+    MISSION: Produce a model-ready dataset as quickly as possible.
+
+    PERSONA RULES:
+    - Drop columns with >50% missing values.
+    - Impute numerical columns using the median.
+    - Impute categorical columns using the mode.
+    - Never use iterative, distance-based or probabilistic imputers.
+    - Prefer simple deterministic operations with minimal computational cost.
+    """
+
+    elif preset == "QUICK_EXPLAINABLE":
+        system_prompt += """
+    MISSION: Produce a clean dataset using transformations that are easy to explain.
+
+    PERSONA RULES:
+    - Drop columns with >50% missing values.
+    - Impute numerical columns using the median.
+    - Impute categorical columns using the mode.
+    - Every cleaning decision should be intuitive and easily explained to non-technical stakeholders.
+    - Avoid complex imputers entirely.
+    """
+
+    elif preset == "KAGGLE_COMPETITOR":
+        system_prompt += """
+    MISSION: Preserve as much predictive signal as possible regardless of execution time.
+
+    PERSONA RULES:
+    - Drop columns only if they contain >80% missing values.
+    - Use `KNNImputer` from `sklearn.impute` for numerical features.
+    - Impute categorical columns using the mode.
+    - Preserve rare categories whenever possible.
+    - Never sacrifice predictive information simply to reduce computation.
+    """
+
+    elif preset == "ENTERPRISE_STANDARD":
+        system_prompt += """
+    MISSION: Produce a robust production-quality dataset using widely accepted engineering practices.
+
+    PERSONA RULES:
+    - Drop columns with >70% missing values.
+    - Use median imputation for skewed numerical columns.
+    - Use mean imputation for approximately symmetric numerical columns.
+    - Impute categorical columns using the mode.
+    - Detect obvious numerical outliers using the IQR rule and clip them to the IQR bounds.
+    - Prefer deterministic preprocessing.
+    """
+
+    elif preset == "REGULATORY_COMPLIANCE":
+        system_prompt += """
+    MISSION: Produce a completely transparent and auditable cleaned dataset.
+
+    PERSONA RULES:
+    - Drop rows containing missing values if they account for less than 5% of the dataset.
+    - Otherwise use simple mean imputation for numerical columns.
+    - Impute categorical columns using the mode.
+    - Never use black-box imputers such as KNNImputer.
+    - Every cleaning decision should be deterministic and suitable for inclusion in an audit report.
+    """
+
+    elif preset == "C_SUITE_PITCH":
+        system_prompt += """
+    MISSION: Clean the data only enough to support reliable visualisation.
+
+    PERSONA RULES:
+    - Drop columns with >50% missing values.
+    - Impute numerical columns using the median.
+    - Impute categorical columns using the mode.
+    - Do not spend unnecessary computation preserving every possible feature.
+    - Prioritise clean visualisations rather than modelling readiness.
+    """
+    
     messages = [
         SystemMessage(content=system_prompt),
         HumanMessage(content="Please write the Python code to execute this task now.")

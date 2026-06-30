@@ -7,13 +7,19 @@ langchain-ollama
 langchain_openai>=1.0.0
 langchain-google-genai
 openai
+pydantic
 
 # Data Science & Machine Learning
 pandas
 numpy
+scipy
 sqlalchemy
 scikit-learn
 xgboost
+lightgbm
+pytorch == 2.7.1+cu118
+tabpfn
+imblearn
 
 # Visualization
 matplotlib
@@ -27,3 +33,4 @@ streamlit-flow-component
 python-dotenv
 psutil
 ipykernel
+z3-solver
