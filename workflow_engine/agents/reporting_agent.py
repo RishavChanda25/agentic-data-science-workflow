@@ -91,11 +91,6 @@ def reporting_agent_node(state: DataScienceState) -> dict:
         with open(metrics_path, "r", encoding="utf-8") as f:
             metrics_text = json.dumps(json.load(f), indent=2)
 
-    # Useful for debugging
-    print("\n========== FIGURE MANIFEST ==========")
-    print(json.dumps(figure_manifest, indent=2))
-    print("====================================\n")
-
     # Extract user goals
     target_var = state.get("target_variable", "target")
     user_request = state.get("user_request", "Clean the data and train a model.")

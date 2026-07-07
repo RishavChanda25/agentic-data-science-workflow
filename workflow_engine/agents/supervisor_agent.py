@@ -115,9 +115,9 @@ The Z3 verifier enforces workflow legality.
 
 To maximise the chance that your first proposal is accepted:
 
-- Missing values generally require 'data_cleaning'.
-- Free-text columns generally require 'data_cleaning'.
-- Categorical features generally require 'feature_engineering' before modelling.
+- Missing or null values require 'data_cleaning'.
+- Free-text columns require 'data_cleaning'.
+- Categorical features require 'feature_engineering' before modelling.
 - 'reporting' must always be the final node.
 - ENTERPRISE_STANDARD and REGULATORY_COMPLIANCE follow the complete end-to-end workflow.
 - C_SUITE_PITCH focuses on executive insights and does not perform feature engineering or modelling.

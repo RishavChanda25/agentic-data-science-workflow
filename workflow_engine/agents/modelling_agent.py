@@ -64,6 +64,28 @@ Perform the following operations exactly:
 10. Generate a Confusion Matrix for the selected model and save it to:
    '{confusion_matrix_path}'.
 
+IMPLEMENTATION REQUIREMENTS:
+
+If multiple models are trained:
+1. Create an empty list named `model_results`.
+2. After each model finishes training, append ONE dictionary containing:
+   - model_name
+   - model
+   - accuracy
+   - precision
+   - recall
+   - f1_score
+3. After ALL models have finished training, select the best model using:
+
+   best_model_entry = max(model_results, key=lambda x: x["f1_score"])
+
+4. Use `best_model_entry` when:
+   - saving the model
+   - writing model_metrics.json
+   - generating the confusion matrix
+5. Do NOT maintain separate dictionaries such as `results`, `trained_models`,
+   `metrics`, etc. Maintain ALL information inside `model_results`.
+
 CRITICAL RULES:
 - Output ONLY valid Python code.
 - Never wrap code in markdown.
@@ -71,8 +93,11 @@ CRITICAL RULES:
 - Create output directories using `os.makedirs(..., exist_ok=True)`.
 - ALWAYS use `random_state=42` wherever supported.
 - NEVER perform hyperparameter optimisation unless explicitly instructed by your Persona Rules.
-- ALWAYS use F1-score as the model selection criterion.
+- ALWAYS evaluate every trained model.
+- Store every trained model together with its evaluation metrics.
+- Select the best model ONLY after every model has been evaluated, using the highest F1-score.
 - If multiple models are trained, discard all non-selected models after evaluation and persist ONLY the best model.
+- Every trained model and its evaluation metrics MUST remain together inside the same dictionary entry. Avoid parallel data structures.
 - Save plots using `plt.savefig(..., bbox_inches='tight')` followed immediately by `plt.close()`.
 
 --- DYNAMIC PERSONA INJECTION: {preset} ---
@@ -144,7 +169,7 @@ CRITICAL RULES:
     - Train a RandomForestClassifier(random_state=42).
     - Train an XGBClassifier(random_state=42).
     - Do not perform expensive hyperparameter optimisation.
-    - Compare both models using default parameters.
+    - Compare all models using default parameters.
     - Select the best model using F1-score.
     - Prefer robustness and maintainability over squeezing out marginal performance gains.
     """
