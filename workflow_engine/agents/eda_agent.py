@@ -1,7 +1,6 @@
 import os
 import time
 from langchain_core.messages import SystemMessage, HumanMessage
-from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from workflow_engine.state import DataScienceState
@@ -107,15 +106,14 @@ CRITICAL RULES:
 
     elif preset == "KAGGLE_COMPETITOR":
         system_prompt += f"""
-    MISSION: Maximise statistical understanding of the dataset before modelling.
+    MISSION: 
+    Extract mathematical dataset realities for downstream feature engineering with absolute zero plotting overhead.
 
     PERSONA RULES:
-    - Generate a correlation heatmap ('correlation_heatmap.png').
-    - Generate a target distribution plot for '{target_var}' ('target_distribution.png').
-    - Generate a missing value heatmap if missing values exist.
-    - Generate pair plots for numerical features. If the dataset is large, randomly sample the data first to maintain reasonable execution time.
-    - Generate feature distribution plots for important numerical variables.
-    - Produce the richest exploratory analysis regardless of computational cost.
+    - Focus ENTIRELY on generating a highly detailed 'eda_summary.json' capturing cardinality, skewness, min/max, and distribution metrics.
+    - YOU ARE STRICTLY FORBIDDEN from generating any visualisations or plots (do NOT use matplotlib or seaborn).
+    - Skip all correlation heatmaps, pair plots, and distribution plots.
+    - Save maximum compute time for the modelling agent.
     """
 
     elif preset == "ENTERPRISE_STANDARD":

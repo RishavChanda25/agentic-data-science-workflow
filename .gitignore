@@ -3,23 +3,25 @@
 
 # --- Data & Artifact Directories ---
 # Ignore everything inside these directories
-data/raw/*
+# data/raw/*
 data/processed/*
 data/artifacts/*
 
 # BUT explicitly track the .gitkeep files to preserve the folders
-!data/raw/.gitkeep
+# !data/raw/.gitkeep
 !data/processed/.gitkeep
 !data/artifacts/.gitkeep
 
 # --- Reports & Figures ---
-# Ignore generated reports and figures
+# Ignore generated reports, figures and results
 reports/figures/*
 reports/final_reports/*
+# reports/results/*
 
 # Preserve the folder structure
 !reports/figures/.gitkeep
 !reports/final_reports/.gitkeep
+# !reports/results/.gitkeep
 
 # --- Python ---
 __pycache__/

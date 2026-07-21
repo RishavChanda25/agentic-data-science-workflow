@@ -59,6 +59,12 @@ def verify_proposed_route(proposed_route: list, dataset_metadata: dict, preset: 
         solver.add(visits_fe == True)
         solver.add(visits_modelling == True)
 
+    if preset == "KAGGLE_COMPETITOR":
+        # Needs maximum predictive performance, so must visit EDA, FE, and Modelling
+        solver.add(visits_eda == True)
+        solver.add(visits_fe == True)
+        solver.add(visits_modelling == True)
+
     elif preset == "ENTERPRISE_STANDARD":
         # Canonical end-to-end production workflow
         solver.add(visits_cleaning == True)
@@ -73,7 +79,7 @@ def verify_proposed_route(proposed_route: list, dataset_metadata: dict, preset: 
         solver.add(visits_eda == True)
     
     else:
-        # RAPID_BASELINE, QUICK_EXPLAINABLE, KAGGLE_COMPETITOR
+        # RAPID_BASELINE, QUICK_EXPLAINABLE
         # These all require modelling, but EDA/Cleaning/FE are dynamic based on metadata & LLM choice
         solver.add(visits_modelling == True) 
 
@@ -90,6 +96,10 @@ def verify_proposed_route(proposed_route: list, dataset_metadata: dict, preset: 
             reason = "REGULATORY_COMPLIANCE requires a strict audit trail. All 5 nodes ('data_cleaning', 'eda', 'feature_engineering', 'modelling', 'reporting') must be visited."
         elif preset == "ENTERPRISE_STANDARD" and len(proposed_route) < 5:
             reason = "ENTERPRISE_STANDARD follows the canonical end-to-end workflow. All 5 nodes ('data_cleaning', 'eda', 'feature_engineering', 'modelling', 'reporting') must be visited."
+        elif preset == "KAGGLE_COMPETITOR" and "eda" not in proposed_route:
+            reason = "KAGGLE_COMPETITOR requires requires the 'eda' node to generate insights."
+        elif preset == "KAGGLE_COMPETITOR" and "feature_engineering" not in proposed_route:
+            reason = "KAGGLE_COMPETITOR requires requires the 'feature_engineering' node for maximal performance."
         elif preset == "C_SUITE_PITCH" and "modelling" in proposed_route:
             reason = "C_SUITE_PITCH is for pure EDA. The 'modelling' node is strictly forbidden."
         elif preset == "C_SUITE_PITCH" and "feature_engineering" in proposed_route:

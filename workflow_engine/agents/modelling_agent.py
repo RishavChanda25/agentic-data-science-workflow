@@ -1,6 +1,5 @@
 import os
 from langchain_core.messages import SystemMessage, HumanMessage
-from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from workflow_engine import state
@@ -104,32 +103,17 @@ CRITICAL RULES:
 """
     
     if preset == "RAPID_BASELINE":
-        system_prompt += f"""
+        system_prompt += """
     MISSION:
     Produce a baseline predictive model in the shortest possible time.
 
     PERSONA RULES:
     - Optimise purely for execution speed.
-    - You MAY use Foundation Models.
-    - Import `torch`.
-    - Detect GPU availability using `torch.cuda.is_available()`.
-
-    DATASET REALITY:
-    - Rows: {num_rows}
-    - Columns: {num_cols}
-
-    MODEL POLICY:
-    - If rows <= 10000 AND columns <= 500:
-        Train ONLY a TabPFNClassifier.
-        Use device='cuda' if available, otherwise 'cpu'.
-        Use model = TabPFNClassifier(device=device)
-    - Otherwise:
-        Train ONLY a LogisticRegression(solver='liblinear', random_state=42).
-
-    Never train multiple models.
-    Never perform cross-validation.
-    Never perform hyperparameter tuning.
-    Evaluate immediately.
+    - Train ONLY a LogisticRegression(solver='liblinear', random_state=42).
+    - Never train multiple models.
+    - Never perform cross-validation.
+    - Never perform hyperparameter tuning.
+    - Evaluate immediately.
     """    
     
     elif preset == "QUICK_EXPLAINABLE":
@@ -149,15 +133,17 @@ CRITICAL RULES:
     elif preset == "KAGGLE_COMPETITOR":
         system_prompt += """
     MISSION:
-    Maximise predictive performance regardless of computation time.
+    Maximise predictive performance regardless of computation time while strictly preventing data leakage.
 
     PERSONA RULES:
-    - Train RandomForest, DecisionTreeClassifier, LogisticRegression, XGBClassifier and LGBMClassifier.
-    - Optimise using RandomizedSearchCV (n_iter=5, random_state=42).
-    - Select the best tuned model using F1-score.
-    - Ignore interpretability completely.
-    - Computational cost is not a concern.
-    """    
+    - Split the data into train and test sets FIRST (80/20 split). You MUST use `stratify=y` to ensure the minority class is represented in both sets.
+    - Handle class imbalance intelligently: If the minority class is extremely small (< 1%), DO NOT use SMOTE, as it will generate too much noise. Instead, rely on algorithmic weighting (e.g., `scale_pos_weight` or `class_weight='balanced'`). If minority class is > 1%, you MUST use SMOTE on the training data.
+    - Train LogisticRegression, DecisionTreeClassifier, RandomForestClassifier, XGBClassifier, LGBMClassifier, and HistGradientBoostingClassifier.
+    - You MUST define extensive and deep hyperparameter grids for EVERY model. For tree ensembles, you must heavily tune `learning_rate`, `max_depth` (e.g., 3 to 15), and `n_estimators` (e.g., 100 to 500).
+    - Optimise using RandomizedSearchCV (n_iter=15, random_state=42). You MUST use a StratifiedKFold cross-validation strategy.
+    - Select the best tuned model using the F1-score evaluated on the untouched test set.
+    - Ignore interpretability completely. Computational cost is not a concern.
+    """
     
     elif preset == "ENTERPRISE_STANDARD":
         system_prompt += """
@@ -222,8 +208,8 @@ CRITICAL RULES:
         print(f"\n--- ATTEMPT {attempts}/{max_retries} ---")
         
         if attempts > 1:
-            print("Cooling down for 15 seconds to respect API rate limits...")
-            time.sleep(15)
+            print("Cooling down for 5 seconds to respect API rate limits...")
+            time.sleep(5)
             
         try:
             response = llm.invoke(messages)

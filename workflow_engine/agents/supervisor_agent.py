@@ -37,13 +37,11 @@ def supervisor_node(state: DataScienceState):
         else:
             next_node = "FINISH"
             
-        latency = time.perf_counter() - start_time
         return {
             "next_node": next_node,
-            "supervisor_latency": latency,
+            "supervisor_latency": time.perf_counter() - start_time,
             "supervisor_tokens": 0, 
-            "supervisor_calls": 1,
-            "api_call_timestamps": [time.time()]
+            "supervisor_calls": 0
         }
 
     # MODE 2: THE LLM PLANNER
@@ -53,6 +51,8 @@ def supervisor_node(state: DataScienceState):
     print(f"⏳ [Rate Limit Protocol] Pausing for {sleep_duration}s...")
     time.sleep(sleep_duration)
     current_sleep = state.get("total_sleep_time", 0.0)
+
+    start_time = time.perf_counter() # Reset start time after sleep to measure LLM planning latency accurately.
     
     structured_llm = llm.with_structured_output(RouteProposal, include_raw=True)
     dataset_metadata = state.get(
@@ -120,8 +120,9 @@ To maximise the chance that your first proposal is accepted:
 - Categorical features require 'feature_engineering' before modelling.
 - 'reporting' must always be the final node.
 - ENTERPRISE_STANDARD and REGULATORY_COMPLIANCE follow the complete end-to-end workflow.
+- KAGGLE_COMPETITOR requires EDA, feature engineering and modelling for maximum predictive performance.
 - C_SUITE_PITCH focuses on executive insights and does not perform feature engineering or modelling.
-- RAPID_BASELINE, QUICK_EXPLAINABLE and KAGGLE_COMPETITOR should avoid unnecessary worker nodes whenever the dataset allows.
+- RAPID_BASELINE and QUICK_EXPLAINABLE should avoid unnecessary worker nodes whenever the dataset allows.
 """
 
     messages = [

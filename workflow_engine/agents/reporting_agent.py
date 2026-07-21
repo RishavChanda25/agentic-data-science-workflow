@@ -2,7 +2,6 @@ import os
 import time
 import json
 from langchain_core.messages import SystemMessage, HumanMessage
-from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from workflow_engine.state import DataScienceState
@@ -195,19 +194,15 @@ CRITICAL RULES
     elif preset == "KAGGLE_COMPETITOR":
         system_prompt += """
     MISSION:
-    Document predictive performance.
+    Write a ruthlessly technical, highly advanced machine learning evaluation report.
 
     PERSONA RULES:
-    Focus primarily on:
-    - chosen model
-    - Accuracy
-    - Precision
-    - Recall
-    - F1-score
-
-    Discuss performance trade-offs.
-
-    Avoid business storytelling.
+    - You are writing STRICTLY for a panel of elite Data Scientists and Kaggle Grandmasters. 
+    - You MUST use heavy ML jargon throughout the report (e.g., hyperparameter spaces, non-linear decision boundaries, gradient boosting architectures, precision-recall trade-offs, class imbalance distributions).
+    - Discuss deep statistical trade-offs in technical detail (e.g., how Accuracy was sacrificed to maximize F1/Recall, or the effects of SMOTE on model variance).
+    - If a simple model (like Logistic Regression) outperformed complex ensembles (like XGBoost), frame this as a significant statistical finding. Discuss linear vs. non-linear decision boundaries, Occam's razor, and the model's robustness to SMOTE-induced noise.
+    - COMPLETELY OMIT all high-level business generalizations, executive summaries, or fluff. Do not talk about business impact, stakeholders, or revenue.
+    - Provide a dense, mathematical analysis of the model's predictive capabilities.
     """
     elif preset == "ENTERPRISE_STANDARD":
         system_prompt += """

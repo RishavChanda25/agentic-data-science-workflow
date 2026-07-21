@@ -2,7 +2,6 @@ import os
 import json
 import time
 from langchain_core.messages import SystemMessage, HumanMessage
-from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from workflow_engine.state import DataScienceState
@@ -109,15 +108,16 @@ CRITICAL RULES:
     elif preset == "KAGGLE_COMPETITOR":
         system_prompt += """
     MISSION:
-    Maximise predictive performance regardless of execution time.
+    Maximise predictive performance while strictly preventing data leakage.
 
     PERSONA RULES:
-    - One-hot encode categorical predictors.
+    - Strictly separate columns using `select_dtypes(include=np.number)` for numerical and `exclude=np.number` for categorical.
+    - NEVER drop numerical/continuous columns based on a high unique value count. 
+    - One-hot encode categorical predictors. (You may drop categorical columns with >100 unique values to prevent memory explosion).
     - StandardScale numerical predictors.
-    - If the EDA Summary or dataset indicates severe class imbalance, apply SMOTE before model training preparation.
-    - Generate second-degree PolynomialFeatures for numerical variables.
-    - If the transformed feature space exceeds approximately 50 features, apply PCA retaining approximately 95% explained variance.
-    - Optimise purely for predictive performance.
+    - Generate second-degree PolynomialFeatures for the most skewed numerical variables.
+    - If the transformed feature space exceeds 50 features, apply PCA retaining approximately 95% explained variance.
+    - CRITICAL LEAKAGE RULE: Do NOT apply SMOTE or any class balancing here. Balancing will be handled dynamically inside the Modelling node after the train/test split.
     """
 
     elif preset == "ENTERPRISE_STANDARD":
