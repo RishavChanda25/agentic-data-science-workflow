@@ -7,8 +7,11 @@
 data/processed/*
 data/artifacts/*
 
+# Ignore the uploaded dataset file in the raw data directory
+data/raw/uploaded_dataset.csv
+
 # BUT explicitly track the .gitkeep files to preserve the folders
-# !data/raw/.gitkeep
+!data/raw/.gitkeep
 !data/processed/.gitkeep
 !data/artifacts/.gitkeep
 

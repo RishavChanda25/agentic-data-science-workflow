@@ -56,7 +56,7 @@ def reporting_agent_node(state: DataScienceState) -> dict:
 
                 relative_path = os.path.relpath(
                     absolute_path,
-                    start=final_reports_dir
+                    start=project_root
                 ).replace("\\", "/")
 
                 figure_manifest.append({
@@ -74,7 +74,7 @@ def reporting_agent_node(state: DataScienceState) -> dict:
 
         relative_path = os.path.relpath(
             confusion_matrix_path,
-            start=final_reports_dir
+            start=project_root
         ).replace("\\", "/")
 
         figure_manifest.append({
@@ -148,7 +148,7 @@ IMPORTANT:
 - If no model metrics were generated, do not fabricate modelling results.
 - The model_training_time metric reflects the total time taken to train all models, not just the best one.
 - If modelling was executed, always include the Confusion Matrix using:
-  ![Confusion Matrix](../figures/confusion_matrix.png)
+  ![Confusion Matrix](reports/figures/confusion_matrix.png)
 - Briefly explain what the confusion matrix indicates about the selected model.
 
 CRITICAL RULES
